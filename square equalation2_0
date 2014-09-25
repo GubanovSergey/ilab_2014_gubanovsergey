@@ -1,0 +1,53 @@
+#include <stdio.h>
+
+double a = 0, b = 0, c = 0, x1 = 0, x2 = 0, d = 0;
+char a1 [16],b1 [16], c1 [16];
+unsigned short int n;
+
+bool readnum (char *temp)
+{
+    char c;
+    scanf("%c",c);
+    while ((c>='0' && c<='9')||(c='.'))
+    {
+
+        *temp=c-'0';
+         scanf("%c",c);
+         temp++;
+    }
+    if (c!=' ')
+    {
+        scanf("%*c");
+        readnum(temp);
+        return 1;
+    }
+    else return 0;
+}
+
+bool read()
+{
+    char *temp;
+    bool flag0,flag;
+    temp=a1;
+    flag0=readnum(temp);
+    temp=b1;
+    flag=readnum(temp);
+    if (!flag0 && flag) flag0=1;
+    temp=c1;
+    flag=readnum(temp);
+    if (!flag0 && flag) flag0=1;
+    return flag0;
+}
+
+
+int main()
+{
+	bool corsymb;
+	corsymb=read();
+	if (corsymb)
+    {
+        printf ("You've been mistaken");
+    }
+    else ("You've typed correctly");
+	return 0;
+}

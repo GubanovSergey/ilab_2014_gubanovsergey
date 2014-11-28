@@ -1,0 +1,213 @@
+// supported commands are:
+// push <=>  1
+// pop  <=> -1
+// add  <=>  2
+// mul  <=>  3
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+FILE * reader;
+FILE * writer;
+
+enum err_code_t
+{
+	All_good,
+	Mem_err,
+	Len_lim_exc,
+	Eof_empstr = 10,
+	Eof,
+	Not_number = 20
+};
+enum exp_word_t
+{
+	Anything,
+	Cmd_lbl,
+	Cmd,
+	Num_or_Cmd_wo_params,
+	Lbl,
+	Number = 10
+};
+
+err_code_t getword(char *);
+
+void err_handle(err_code_t err_code)
+{
+	/* TODO realize err_handle function
+	{
+	printf("Too long argument for command or label.\nType not more than 50 next time\n");
+	fprintf(writer, "Too long argument for command or label.\nType not more than 50 next time\n");
+	system("pause");
+	exit(0);
+	}
+	*/
+	if (err_code && err_code != 11)
+	{
+		if (err_code == 20)
+		{
+			printf("Input error. Number needed to continue\nProgram will be closed\n");
+			fclose(writer);
+			system("pause");
+			exit(0);
+		}
+		else
+		{
+			printf("Function hasn't been realized yet");
+			fclose(writer);
+			system("pause");
+			exit(0);
+		}
+	}
+}
+
+err_code_t getnum(double *);
+
+int main()
+{
+	reader = fopen("asm.txt", "r");
+	writer = fopen("asm_res.txt", "w");
+	char str[51] = "";
+	char c;
+	double a;
+	err_code_t err_code = All_good;
+	exp_word_t expected = Anything;
+	unsigned short int com_flag = 1, end_flag = 0;
+	// 0 - Anything
+	// 1 - command or label
+	// 2 - command
+	// 3 - command without parameters or number
+	// 4 - label
+	// 10 - number
+	//err_code = getword(str);
+	while (!end_flag && ((err_code = getword(str)) == 0 || (end_flag = (err_code == Eof))))
+	{
+		if (!err_code)
+			expected = Anything;
+		else
+			if (err_code == Eof)
+				expected = Num_or_Cmd_wo_params;
+
+		if (str[0] == 'p')
+		{
+			if (strcmp("push", str) == 0)
+			{
+				if (expected == Num_or_Cmd_wo_params)
+				{
+					printf("Expected command without parameters, but push was found\n");
+					system("pause");
+					fclose(writer);
+					exit(0);
+				}
+				fprintf(writer,"1 ");
+				expected = Number;
+			}
+			else if (strcmp("pop", str) == 0)
+				fprintf(writer,"-1\n");
+			else com_flag = 0, expected = Lbl;
+		}
+		else if (str[0] == 'a')
+		{
+			if (strcmp("add", str) == 0)
+			{
+				fprintf(writer, "2\n");
+			}
+			else com_flag = 0, expected = Lbl;
+		}
+		else if (str[0] == 'm')
+		{
+			if (strcmp("mul", str) == 0)
+			{
+				fprintf(writer,"3\n");
+			}
+			else com_flag = 0, expected = Lbl;
+		}
+		else com_flag = 0, expected = Lbl;
+		if (!com_flag && expected == Lbl)
+		{
+			printf("This is not a command. Labels are not supported yet\n");
+			fprintf(writer, "This is not a command. Labels are not supported yet\n");
+			fclose(writer);
+			system("pause");
+			exit(0);
+		}
+		else if (expected == Number)
+		{
+			err_handle(getnum(&a));
+			fprintf(writer, "%lg\n", a);
+		}
+		//err_handle(err_code);
+	}
+	fclose(reader);
+	fclose(writer);
+	return 0;
+}
+
+err_code_t getword(char * word_ptr)
+{
+	int symb = 0;
+	unsigned short int nsymb = 0;
+	while ((symb = fgetc(reader)) != EOF && (symb == ' ' || symb == '\n' || symb == '\t'));
+	if (symb == EOF)
+	{
+		if (nsymb == 0)
+		{
+			err_handle(Eof_empstr);
+			return Eof_empstr;
+		}
+		else
+			return Eof;
+	}
+	else
+		ungetwc(symb, reader);
+
+	word_ptr[0] = 0;
+	while ((symb = fgetc(reader)) != ' ' && symb != '\n' && symb != '\t' && symb != EOF && nsymb < 50)
+		word_ptr[nsymb++] = symb;
+
+
+	if (nsymb == 50 && !(symb == ' ' || symb == '\n' || symb == '\t'))
+	{
+		err_handle(Len_lim_exc);
+		return Len_lim_exc;
+	}
+
+	while ((symb = fgetc(reader)) != EOF && (symb == ' ' || symb == '\n' || symb == '\t'));
+	if (symb == EOF) return Eof;
+	else
+	{
+		ungetwc(symb, reader);
+		word_ptr[nsymb] = 0;
+		return All_good;
+	}
+}
+
+err_code_t getnum(double * num_ptr)
+{
+	char* word_ptr = (char*)malloc(51 * sizeof(*word_ptr));
+	if (!word_ptr) err_handle(Mem_err);
+	err_code_t err_code = getword(word_ptr);
+	err_handle(err_code);
+
+	char ** ptrptr = (char **)calloc(1, sizeof(*ptrptr));
+	(*ptrptr) = NULL;
+	if (!ptrptr)
+		err_handle(Mem_err);
+	double number = strtod(word_ptr, ptrptr);
+	if (!(*ptrptr) || (**ptrptr) != 0)
+	{
+		printf("Input error. Number was preferred to be read, but %c was found\nPrint '.' to exit\n", **ptrptr);
+		system("pause");
+		char c = getchar();
+		if (c == '.')
+		{
+			fclose(writer);
+			exit(0);
+		}
+		return Not_number;
+	}
+	else
+	{
+		(*num_ptr) = number;
+		return err_code;
+	}
+}

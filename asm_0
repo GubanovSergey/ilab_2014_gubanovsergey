@@ -7,19 +7,26 @@
 #include <string.h>
 #include <stdlib.h>
 
+#ifdef DBG_mode
+    #define DBG ;
+#else
+    #define DBG if(0)
+#endif
+
 FILE * reader;
 FILE * writer;
 
-enum err_code_t
+typedef enum err_codes
 {
 	All_good,
 	Mem_err,
 	Len_lim_exc,
 	Eof_empstr = 10,
 	Eof,
-	Not_number = 20
-};
-enum exp_word_t
+	Not_number = 20,
+	Unexp_exc = 99
+} err_code_t;
+typedef enum expect_words
 {
 	Anything,
 	Cmd_lbl,
@@ -27,7 +34,7 @@ enum exp_word_t
 	Num_or_Cmd_wo_params,
 	Lbl,
 	Number = 10
-};
+} exp_word_t;
 
 err_code_t getword(char *);
 
@@ -45,14 +52,22 @@ void err_handle(err_code_t err_code)
 	{
 		if (err_code == 20)
 		{
-			printf("Input error. Number needed to continue\nProgram will be closed\n");
+			DBG printf("Input error. Number needed to continue\nProgram will be closed\n");
+			fprintf(writer, "Input error. Number expected\n");
 			fclose(writer);
 			system("pause");
 			exit(0);
 		}
-		else
+		else if (err_code == 99)
+        {
+            DBG printf("An error has been detected and program will be shut down.\n");
+		    fclose(writer);
+		    system ("pause");
+		    exit(0);
+        }
+        else
 		{
-			printf("Function hasn't been realized yet");
+			DBG printf("Function hasn't been realized yet. Errcode is %hd\n", err_code);
 			fclose(writer);
 			system("pause");
 			exit(0);
@@ -66,22 +81,25 @@ int main()
 {
 	reader = fopen("asm.txt", "r");
 	writer = fopen("asm_res.txt", "w");
-	char str[51] = "";
-	char c;
-	double a;
+	fseek(writer, 26, 0);                   //empty place for number of commands
+	fprintf(writer,"\n");
+	char str[51] = {0};
+	char c = 0;
+	double a = 0;
+	unsigned long long cmd_num = 0;
 	err_code_t err_code = All_good;
 	exp_word_t expected = Anything;
 	unsigned short int com_flag = 1, end_flag = 0;
 	// 0 - Anything
-	// 1 - command or label
-	// 2 - command
-	// 3 - command without parameters or number
-	// 4 - label
-	// 10 - number
+	// 1 - command or label                         = Cmd_lbl
+	// 2 - command                                  = Cmd
+	// 3 - command without parameters or number     = Num_or_Cmd_wo_params
+	// 4 - label                                    = Lbl
+	// 10 - number                                  = Number
 	//err_code = getword(str);
-	while (!end_flag && ((err_code = getword(str)) == 0 || (end_flag = (err_code == Eof))))
+	while (!end_flag && ((err_code = getword(str)) == All_good || (end_flag = (err_code == Eof))))
 	{
-		if (!err_code)
+	    if (!err_code)
 			expected = Anything;
 		else
 			if (err_code == Eof)
@@ -98,18 +116,18 @@ int main()
 					fclose(writer);
 					exit(0);
 				}
-				fprintf(writer,"1 ");
+				fprintf(writer, "1 "), cmd_num++;
 				expected = Number;
 			}
 			else if (strcmp("pop", str) == 0)
-				fprintf(writer,"-1\n");
+				fprintf(writer, "-1\n"), cmd_num++;
 			else com_flag = 0, expected = Lbl;
 		}
 		else if (str[0] == 'a')
 		{
 			if (strcmp("add", str) == 0)
 			{
-				fprintf(writer, "2\n");
+				fprintf(writer, "2\n"), cmd_num++;
 			}
 			else com_flag = 0, expected = Lbl;
 		}
@@ -117,14 +135,15 @@ int main()
 		{
 			if (strcmp("mul", str) == 0)
 			{
-				fprintf(writer,"3\n");
+				fprintf(writer, "3\n"), cmd_num++;
 			}
 			else com_flag = 0, expected = Lbl;
 		}
 		else com_flag = 0, expected = Lbl;
+		//-----------------------------------------------------------------------------
 		if (!com_flag && expected == Lbl)
 		{
-			printf("This is not a command. Labels are not supported yet\n");
+			DBG printf("This is not a command: %s. Labels are not supported yet\n", str);
 			fprintf(writer, "This is not a command. Labels are not supported yet\n");
 			fclose(writer);
 			system("pause");
@@ -132,17 +151,23 @@ int main()
 		}
 		else if (expected == Number)
 		{
-			err_handle(getnum(&a));
-			fprintf(writer, "%lg\n", a);
+			err_handle(((err_code = getnum(&a))));
+			end_flag = (err_code == Eof);
+			fprintf(writer, "%lg\n", a), cmd_num++;
 		}
+
 		//err_handle(err_code);
+		DBG printf("err_code = %2d, end_flag = %d, read command = %s, expected = %d\n", err_code, end_flag, str, expected);
+
 	}
 	fclose(reader);
+	fseek(writer, 0, 0);
+	fprintf(writer, ".%llu\n", cmd_num);
 	fclose(writer);
 	return 0;
 }
 
-err_code_t getword(char * word_ptr)
+err_code_t getword(char * word_ptr)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               //                                                                                                                                                                                                                                                                                     //                                                                                                                                                                                                                                   //                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               //                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              //                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          //                                                                                                                                                                                                                                                     /                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             //                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        //
 {
 	int symb = 0;
 	unsigned short int nsymb = 0;
@@ -155,12 +180,14 @@ err_code_t getword(char * word_ptr)
 			return Eof_empstr;
 		}
 		else
-			return Eof;
+		{
+		    err_handle(Unexp_exc);
+			return Unexp_exc;
+		}
 	}
 	else
-		ungetwc(symb, reader);
+		ungetc(symb, reader);
 
-	word_ptr[0] = 0;
 	while ((symb = fgetc(reader)) != ' ' && symb != '\n' && symb != '\t' && symb != EOF && nsymb < 50)
 		word_ptr[nsymb++] = symb;
 
@@ -171,12 +198,12 @@ err_code_t getword(char * word_ptr)
 		return Len_lim_exc;
 	}
 
+	word_ptr[nsymb] = '\0';
 	while ((symb = fgetc(reader)) != EOF && (symb == ' ' || symb == '\n' || symb == '\t'));
 	if (symb == EOF) return Eof;
 	else
 	{
-		ungetwc(symb, reader);
-		word_ptr[nsymb] = 0;
+		ungetc(symb, reader);
 		return All_good;
 	}
 }
@@ -196,10 +223,10 @@ err_code_t getnum(double * num_ptr)
 	if (!(*ptrptr) || (**ptrptr) != 0)
 	{
 		printf("Input error. Number was preferred to be read, but %c was found\nPrint '.' to exit\n", **ptrptr);
-		system("pause");
 		char c = getchar();
 		if (c == '.')
 		{
+			fprintf(writer, "Reading was aborted by user");
 			fclose(writer);
 			exit(0);
 		}

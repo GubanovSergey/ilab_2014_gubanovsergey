@@ -4,12 +4,11 @@
 #include <Windows.h>
 typedef unsigned long long int ulli;
 typedef double st_type;
-const unsigned short int EMPTY_STACK = 0, OK = 10, PRINT_AND_OUT = 1;
-unsigned short int ERROR_WAS_FOUND = 0;
+const unsigned short int EMPTY_STACK = 0, OK = 10;
 typedef struct elem
 {
 	st_type val;
-	elem* nadd;
+	elem* prevadd;
 	unsigned short int el_cond;
 } stelem_t;
 typedef struct stk
@@ -21,10 +20,23 @@ typedef struct stk
 stk_t* stack_ctor()
 {
 	stelem_t* fadd = (stelem_t*)calloc(1, sizeof(stelem_t));
+	if (!fadd)
+	{
+		printf("\nHave not enough memory to create new stack. Construction will be denied\n");
+		system("pause");
+		return NULL;
+	}
 	fadd->val = 0;
-	fadd->nadd = NULL;
+	fadd->prevadd = NULL;
 	fadd->el_cond = 0;
 	stk_t* res = (stk_t*)calloc(1, sizeof(stk_t));
+	if (!res)
+	{
+		printf("\nHave not enough memory to create new stack. Construction will be denied\n");
+		free(fadd);
+		system("pause");
+		return NULL;
+	}
 	res->counter = 0;
 	res->ladd = fadd;
 	return res;
@@ -34,9 +46,9 @@ void print_stack(stk_t*);
 
 unsigned short int address_check(stelem_t* t_stelem, ulli counter, unsigned short int ifpr_acc)
 {
-	if (!(t_stelem->el_cond) || !(t_stelem->nadd))
+	if (!(t_stelem->el_cond) || !(t_stelem->prevadd))
 	{
-		if (!(t_stelem->el_cond) && !(t_stelem->nadd) && !(t_stelem->val) && !counter)
+		if (!(t_stelem->el_cond) && !(t_stelem->prevadd) && !(t_stelem->val) && !counter)
 			return EMPTY_STACK;
 		else if (counter && !(t_stelem->el_cond))
 		{
@@ -52,7 +64,7 @@ unsigned short int address_check(stelem_t* t_stelem, ulli counter, unsigned shor
 			assert(("Trying to crack a stack!", 0));
 		}
 	}
-	else if ((t_stelem->el_cond) > 2 || !(t_stelem->nadd) || IsBadReadPtr((t_stelem->nadd), sizeof(stelem_t)))
+	else if ((t_stelem->el_cond) > 2 || !(t_stelem->prevadd) || IsBadReadPtr((t_stelem->prevadd), sizeof(stelem_t)))
 	{
 		printf("\nNot a stack element!!!\n");
 		system("pause");
@@ -83,7 +95,6 @@ unsigned short int address_check(stelem_t* t_stelem, ulli counter, unsigned shor
 
 unsigned short int stack_check(stk_t* stkadd)
 {
-	if (ERROR_WAS_FOUND) return ERROR_WAS_FOUND;
 	stelem_t* t_stelem = NULL;
 	if ((!stkadd) || IsBadReadPtr(stkadd, sizeof(stk_t)) || !(stkadd->ladd) || IsBadReadPtr((stkadd->ladd), sizeof(stelem_t)))
 	{
@@ -100,17 +111,16 @@ unsigned short int stack_check(stk_t* stkadd)
 
 void stack_push(st_type value, stk_t* stkadd)
 {
-	unsigned short int verify = stack_check(stkadd);
+	stack_check(stkadd);
 	stelem_t* lastadd = stkadd->ladd;
 	stelem_t* newadd = (stelem_t*)calloc(1, sizeof(stelem_t));
 	if (!newadd)
 	{
-		printf("\nHave not enough memory to push new element\n");
-		printf("\nYour stack:\n", stkadd);
+		printf("\nHave not enough memory to push new element. Push will be denied\n");
 		system("pause");
-		exit(0);
+		return;
 	}
-	newadd->nadd = lastadd;
+	newadd->prevadd = lastadd;
 	newadd->val = value;
 	newadd->el_cond = 2;
 	if (lastadd->el_cond) (lastadd->el_cond)--;
@@ -120,29 +130,26 @@ void stack_push(st_type value, stk_t* stkadd)
 
 st_type stack_peek(stk_t* stkadd)
 {
-	unsigned short int verify = stack_check(stkadd);
-	if (verify == EMPTY_STACK)
-	{
-		printf("Empty stack. It's nothing to be given. Program will be closed\n");
-		system("pause");
-		exit(0);
-	}
-	else return stkadd->ladd->nadd->val;
+	if (stack_check(stkadd) == EMPTY_STACK)
+    {
+        printf("Your stack is empty. No number can be given - returned ");
+        return 0;
+    }
+    else return (stkadd->ladd->val);
 }
 
 st_type stack_pop(stk_t* stkadd)
 {
-	unsigned short int verify = stack_check(stkadd);
-	if (verify == EMPTY_STACK)
+	if (stack_check(stkadd) == EMPTY_STACK)
 	{
-		printf("You can't pop from empty stack.\nPop will be denied (0 will be returned)\n");
+		printf("You can't pop from empty stack.\nPop will be denied (returned 0)\n");
 		system("pause");
 		return 0;
 	}
 	st_type res = stkadd->ladd->val;
 	stelem_t* lastadd = stkadd->ladd;
 	stelem_t* deladd = lastadd;								  //проверка входных данных
-	lastadd = lastadd->nadd;
+	lastadd = lastadd->prevadd;
 	if (lastadd->el_cond) (lastadd->el_cond++);
 	free(deladd);
 	stkadd->counter = (stkadd->counter) - 1;
@@ -152,12 +159,12 @@ st_type stack_pop(stk_t* stkadd)
 
 void print_stack(stk_t* stkadd)
 {
-	unsigned short int verify = stack_check(stkadd);
+	stack_check(stkadd);
 	unsigned short ifpr_acc = 0;
 	stelem_t* curadd = stkadd->ladd;
 	ulli counter = stkadd->counter, coun = 0;
 	unsigned short print_flag = 0;
-	while (curadd && (curadd->el_cond) && (curadd->nadd) && (coun < (stkadd->counter)))
+	while (curadd && (curadd->el_cond) && (curadd->prevadd) && (coun < (stkadd->counter)))
 	{
 		if (!print_flag)
 		{
@@ -165,9 +172,9 @@ void print_stack(stk_t* stkadd)
 			ifpr_acc = 1;
 			printf("\n");
 		}
-		printf("stk[%6llu] = %lg\n", coun, (curadd->val));
-		address_check(curadd->nadd, --counter, ifpr_acc);
-		curadd = (curadd->nadd);
+		printf("stk[%llu] = %lg\n", coun, (curadd->val));
+		address_check(curadd->prevadd, --counter, ifpr_acc);
+		curadd = (curadd->prevadd);
 		coun++;
 	}
 	if (coun != (stkadd->counter))
@@ -183,16 +190,12 @@ void print_stack(stk_t* stkadd)
 
 void stack_dtor(stk_t* stkadd)
 {
-	unsigned short int verify = stack_check(stkadd);
+	stack_check(stkadd);
 	stelem_t* ladd = stkadd->ladd;
 	ulli counter = (stkadd->counter), coun = 0;
-	st_type temp;
-	while (ladd && (ladd->el_cond) && (ladd->nadd) && (stkadd->counter) && (coun < counter))
-	{
-		temp = stack_pop(stkadd);
-	}
-	verify = stack_check(stkadd);
-	if (verify == EMPTY_STACK)
+	while (ladd && (ladd->el_cond) && (ladd->prevadd) && (stkadd->counter) && (coun < counter))
+        stack_pop(stkadd);
+	if (stack_check(stkadd) == EMPTY_STACK)
 	{
 		free(stkadd->ladd);
 		free(stkadd);

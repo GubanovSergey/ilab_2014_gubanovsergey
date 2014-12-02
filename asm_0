@@ -1,14 +1,17 @@
+#define DBG_mode        //!!!This program works in Debug-mode
 // supported commands are:
 // push <=>  1
 // pop  <=> -1
 // add  <=>  2
 // mul  <=>  3
+// peek <=>-26
+// print<=>-25
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
 #ifdef DBG_mode
-    #define DBG ;
+    #define DBG
 #else
     #define DBG if(0)
 #endif
@@ -48,6 +51,8 @@ void err_handle(err_code_t err_code)
 	exit(0);
 	}
 	*/
+
+	/*TODO realize situation of empty file*/
 	if (err_code && err_code != 11)
 	{
 		if (err_code == 20)
@@ -81,8 +86,7 @@ int main()
 {
 	reader = fopen("asm.txt", "r");
 	writer = fopen("asm_res.txt", "w");
-	fseek(writer, 26, 0);                   //empty place for number of commands
-	fprintf(writer,"\n");
+	fprintf(writer,"                         \n");                                                   //empty place for number of commands
 	char str[51] = {0};
 	char c = 0;
 	double a = 0;
@@ -120,14 +124,18 @@ int main()
 				expected = Number;
 			}
 			else if (strcmp("pop", str) == 0)
-				fprintf(writer, "-1\n"), cmd_num++;
+				fprintf(writer, "-1"), cmd_num++;
+            else if (strcmp("peek", str) == 0)
+                fprintf(writer, "-26"), cmd_num++;
+            else if (strcmp("print", str) == 0)
+                fprintf(writer, "-25"), cmd_num++;
 			else com_flag = 0, expected = Lbl;
 		}
 		else if (str[0] == 'a')
 		{
 			if (strcmp("add", str) == 0)
 			{
-				fprintf(writer, "2\n"), cmd_num++;
+				fprintf(writer, "2"), cmd_num++;
 			}
 			else com_flag = 0, expected = Lbl;
 		}
@@ -135,7 +143,7 @@ int main()
 		{
 			if (strcmp("mul", str) == 0)
 			{
-				fprintf(writer, "3\n"), cmd_num++;
+				fprintf(writer, "3"), cmd_num++;
 			}
 			else com_flag = 0, expected = Lbl;
 		}
@@ -153,8 +161,10 @@ int main()
 		{
 			err_handle(((err_code = getnum(&a))));
 			end_flag = (err_code == Eof);
-			fprintf(writer, "%lg\n", a), cmd_num++;
+			fprintf(writer, "%lg", a), cmd_num++;
 		}
+		if (!end_flag)
+            fprintf(writer, "\n");
 
 		//err_handle(err_code);
 		DBG printf("err_code = %2d, end_flag = %d, read command = %s, expected = %d\n", err_code, end_flag, str, expected);
@@ -162,8 +172,9 @@ int main()
 	}
 	fclose(reader);
 	fseek(writer, 0, 0);
-	fprintf(writer, ".%llu\n", cmd_num);
+	fprintf(writer, ".%llu", cmd_num);
 	fclose(writer);
+	printf("Program has successfully finished!\n");
 	return 0;
 }
 

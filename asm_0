@@ -1,11 +1,13 @@
 #define DBG_mode        //!!!This program works in Debug-mode
 // supported commands are:
-// push <=>  1
-// pop  <=> -1
-// add  <=>  2
-// mul  <=>  3
-// peek <=>-26
-// print<=>-25
+// push <=>   1 (arg is number)
+// pop  <=>  -1 (no arg)
+// push <=>   2 (arg is register)
+// pop  <=>  -2 (arg is register)
+// add  <=>  10
+// mul  <=>  11
+// peek <=> -26
+// print<=> -25
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -33,11 +35,14 @@ typedef enum expect_words
 {
 	Anything,
 	Cmd_lbl,
-	Cmd,
 	Num_or_Cmd_wo_params,
 	Lbl,
-	Number = 10
+	Cmd_reg = 5,
+	Number,
+	Num_or_reg
 } exp_word_t;
+
+unsigned short int end_flag = 0;
 
 err_code_t getword(char *);
 
@@ -57,8 +62,8 @@ void err_handle(err_code_t err_code)
 	{
 		if (err_code == 20)
 		{
-			DBG printf("Input error. Number needed to continue\nProgram will be closed\n");
-			fprintf(writer, "Input error. Number expected\n");
+			DBG printf("Number needed to continue. Input error\nProgram will be closed\n");
+			fprintf(writer, "Number expected. Input error\n");
 			fclose(writer);
 			system("pause");
 			exit(0);
@@ -80,7 +85,7 @@ void err_handle(err_code_t err_code)
 	}
 }
 
-err_code_t getnum(double *);
+err_code_t getnum(double *, char *);
 
 int main()
 {
@@ -88,26 +93,30 @@ int main()
 	writer = fopen("asm_res.txt", "w");
 	fprintf(writer,"                         \n");                                                   //empty place for number of commands
 	char str[51] = {0};
-	char c = 0;
+	int c = 0;
 	double a = 0;
 	unsigned long long cmd_num = 0;
 	err_code_t err_code = All_good;
 	exp_word_t expected = Anything;
-	unsigned short int com_flag = 1, end_flag = 0;
-	// 0 - Anything
-	// 1 - command or label                         = Cmd_lbl
-	// 2 - command                                  = Cmd
-	// 3 - command without parameters or number     = Num_or_Cmd_wo_params
-	// 4 - label                                    = Lbl
-	// 10 - number                                  = Number
-	//err_code = getword(str);
-	while (!end_flag && ((err_code = getword(str)) == All_good || (end_flag = (err_code == Eof))))
+	unsigned short int com_flag = 1;
+
+	//-----------------------------------------------------------------------------
+	// 0 - Anything                                                               - pre-read
+	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -//
+	// 1 - command or label                         = Cmd_lbl                     |
+    // 2 - command without parameters or number     = Num_or_Cmd_wo_params        ~  =]-------------\
+    // 3 - label                                    = Lbl                         |  /      - -      \\
+	// 5 - register or command                      = Cmd_reg                     |=|  [ post-read ]  >>
+	// 6 - number                                   = Number                      |  \      - -      //
+	// 7 - number or register                       = Num_or_reg                  ~  =]-------------/
+	//-----------------------------------------------------------------------------
+
+	while ( expected == Cmd_lbl || (!end_flag && ((err_code = getword(str)) == All_good || (err_code == Eof))) )
 	{
 	    if (!err_code)
-			expected = Anything;
-		else
-			if (err_code == Eof)
-				expected = Num_or_Cmd_wo_params;
+			expected = Cmd_lbl;
+		else if (err_code == Eof)
+            expected = Num_or_Cmd_wo_params;
 
 		if (str[0] == 'p')
 		{
@@ -120,11 +129,19 @@ int main()
 					fclose(writer);
 					exit(0);
 				}
-				fprintf(writer, "1 "), cmd_num++;
-				expected = Number;
+				cmd_num++;
+				expected = Num_or_reg;
+				//if push - number of cmd is positive - no arithmetic sign is needed
 			}
 			else if (strcmp("pop", str) == 0)
-				fprintf(writer, "-1"), cmd_num++;
+			{
+			    cmd_num++;
+			    if (expected == Num_or_Cmd_wo_params)
+                    expected = Anything;
+                else
+                    expected = Cmd_reg;
+			    fprintf(writer, "-");
+			}
             else if (strcmp("peek", str) == 0)
                 fprintf(writer, "-26"), cmd_num++;
             else if (strcmp("print", str) == 0)
@@ -135,7 +152,7 @@ int main()
 		{
 			if (strcmp("add", str) == 0)
 			{
-				fprintf(writer, "2"), cmd_num++;
+				fprintf(writer, "10"), cmd_num++;
 			}
 			else com_flag = 0, expected = Lbl;
 		}
@@ -143,11 +160,12 @@ int main()
 		{
 			if (strcmp("mul", str) == 0)
 			{
-				fprintf(writer, "3"), cmd_num++;
+				fprintf(writer, "11"), cmd_num++;
 			}
 			else com_flag = 0, expected = Lbl;
 		}
 		else com_flag = 0, expected = Lbl;
+		DBG printf("err_code = %2d, end_flag = %d, read command = %s, expected = %d\n", err_code, end_flag, str, expected);
 		//-----------------------------------------------------------------------------
 		if (!com_flag && expected == Lbl)
 		{
@@ -157,19 +175,75 @@ int main()
 			system("pause");
 			exit(0);
 		}
-		else if (expected == Number)
-		{
-			err_handle(((err_code = getnum(&a))));
-			end_flag = (err_code == Eof);
-			fprintf(writer, "%lg", a), cmd_num++;
-		}
+		else if (expected == Num_or_reg || expected == Cmd_reg)
+        {
+            if ((err_code = getnum(&a, str)) == Not_number)
+            {
+                DBG printf("Push/pop param isn't a number\n");
+                if (str[1] == 'x' && str[0] >= 'a' && str[0] <= 'd' && str[2] == '\0')     //Register?
+                {
+                    fprintf(writer, "2 %hd", (unsigned short)(str[0]-'a'+1));
+                    cmd_num++;
+                    expected = Anything;
+                    DBG printf("err_code = %2d, end_flag = %d, read command = %s, expected = %d\n", err_code, end_flag, str, expected);
+                }
+                else
+                {
+                    if (expected == Num_or_reg)
+                    {
+                        fprintf(writer, "Register or ");
+                        printf("Register or ");
+                        err_handle (Not_number);
+                    }
+                    else
+                    {
+                        fprintf(writer, "1\n");     //Pop w/o params, '-' has been already printed
+                        expected = Cmd_lbl;
+                        DBG printf("err_code = %2d, end_flag = %d, read command = %s, expected = %d\n", err_code, end_flag, str, expected);
+                        continue;
+                    }
+                }
+            }
+            else            //Number
+            {
+                if (expected == Num_or_reg)
+                    fprintf(writer, "1 %lg", a), cmd_num++;
+                else         //exp = Cmd_reg
+                {
+                    fprintf(writer, "Error! Register was expected, but %lg was found\nProgram will be closed\n", a);
+                    printf("Error! Register was expected, but %lg was found\nProgram will be closed\n", a);
+                    system("pause");
+                    fclose(writer);
+                    exit(0);
+                }
+            }
+        }
+        else
+            expected = Anything;
+         /*
+            end_flag = (err_code == Eof);
+            fprintf(writer, "%lg", a), cmd_num++;
+            else
+            {
+                if (c < 'a' || c > 'd')
+                {
+                    fprintf(writer, "Error! Register was expected, but %cx was found\n\
+                                    Program will be closed\n", c);
+                    printf("Error! Register was expected, but %cx was found\n\
+                            Program will be closed\n", c);
+                    system("pause");
+                    fclose(writer);
+                    exit(0);
+                }
+                else
+                    fprintf(writer, "%hd",(unsigned short)(c- 'a' + 1));
+            }
+            */
 		if (!end_flag)
             fprintf(writer, "\n");
 
 		//err_handle(err_code);
-		DBG printf("err_code = %2d, end_flag = %d, read command = %s, expected = %d\n", err_code, end_flag, str, expected);
-
-	}
+    }
 	fclose(reader);
 	fseek(writer, 0, 0);
 	fprintf(writer, ".%llu", cmd_num);
@@ -188,6 +262,7 @@ err_code_t getword(char * word_ptr)                                             
 		if (nsymb == 0)
 		{
 			err_handle(Eof_empstr);
+			end_flag = 1;
 			return Eof_empstr;
 		}
 		else
@@ -211,29 +286,36 @@ err_code_t getword(char * word_ptr)                                             
 
 	word_ptr[nsymb] = '\0';
 	while ((symb = fgetc(reader)) != EOF && (symb == ' ' || symb == '\n' || symb == '\t'));
-	if (symb == EOF) return Eof;
+	if (symb == EOF)
+    {
+        end_flag = 1;
+        return Eof;
+    }
 	else
 	{
 		ungetc(symb, reader);
 		return All_good;
 	}
 }
-
-err_code_t getnum(double * num_ptr)
+                                  //NULL or str
+err_code_t getnum(double * num_ptr, char str_ptr[51])
 {
-	char* word_ptr = (char*)malloc(51 * sizeof(*word_ptr));
+	char* word_ptr = NULL;
+	if (str_ptr)
+        word_ptr = str_ptr;
+    else
+        word_ptr = (char*)malloc(51 * sizeof(*word_ptr));
+
 	if (!word_ptr) err_handle(Mem_err);
 	err_code_t err_code = getword(word_ptr);
 	err_handle(err_code);
 
-	char ** ptrptr = (char **)calloc(1, sizeof(*ptrptr));
-	(*ptrptr) = NULL;
-	if (!ptrptr)
-		err_handle(Mem_err);
-	double number = strtod(word_ptr, ptrptr);
-	if (!(*ptrptr) || (**ptrptr) != 0)
+	char* ptr = NULL;
+	double number = strtod(word_ptr, &ptr);
+
+	if (ptr && (*ptr))
 	{
-		printf("Input error. Number was preferred to be read, but %c was found\nPrint '.' to exit\n", **ptrptr);
+		printf("Input error. Number was preferred to be read, but %c [code %d] was found\nPrint '.' to exit\n", *ptr, *ptr);
 		char c = getchar();
 		if (c == '.')
 		{
@@ -246,6 +328,8 @@ err_code_t getnum(double * num_ptr)
 	else
 	{
 		(*num_ptr) = number;
+		if (!str_ptr)
+            free(word_ptr);
 		return err_code;
 	}
 }

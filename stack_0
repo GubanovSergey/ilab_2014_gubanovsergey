@@ -132,7 +132,7 @@ st_type stack_peek(stk_t* stkadd)
 {
 	if (stack_check(stkadd) == EMPTY_STACK)
     {
-        printf("Your stack is empty. No number can be given - returned ");
+        printf("No number at the top (empty stack) - returned 0\n");
         return 0;
     }
     else return (stkadd->ladd->val);

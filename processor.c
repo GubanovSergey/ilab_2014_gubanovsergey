@@ -2,19 +2,23 @@
 // supported commands are:
 // push <=>   1 (arg is a number)
 // pop  <=>  -1 (no arg)
-// push <=>   2 (arg is a register)
-// pop  <=>  -2 (arg is a register)
+// push <=>   2 (arg is register)
+// pop  <=>  -2 (arg is register)
 // add  <=>  10
 // mul  <=>  11
+// jmp  <=>  15
+// call <=>  20
+// ret  <=> -20
 // peek <=> -26
 // print<=> -25
 
 #include "stack_proc.h"  //proc is a structure which includes stack pointer (initialized NULL) and registers (ax,bx,cx,dx)
 extern proc_t proc;         //definition is in stack_proc.h
 #define proc_t  //using processor type is not allowed
+#include <math.h>
 
 /* included libs are
-stdlib, stdio, assert, Windows.h
+stdlib, stdio, assert, Windows.h, math
 */
 
 /*#define END_MESSAGE \
@@ -26,7 +30,7 @@ FILE * reader = fopen("asm_res.txt", "r");
 void savecmd_arr(double* cmd_ptr, unsigned long long cmd_num)
 {
     assert(reader);
-    unsigned long long int i = 0, nskip_symb = 0;
+    unsigned long long int i = 0;
     int symb;
     while (!feof(reader))
     {
@@ -74,6 +78,15 @@ void savecmd_arr(double* cmd_ptr, unsigned long long cmd_num)
 int main()
 {
     //const DEF_0 initialized in stack_proc.h
+    /*
+    // ...
+    transit.i = 3;
+    stack_t hren ;
+    push(hren, transit.d);
+    // ...
+    transit.d = pop(hren);
+    (transit.i == 3) = true!!!
+    */
     unsigned long long int cmd_arrsize = DEF_0, cmd_cnt = 0;
     unsigned short int st_succ = fscanf(reader, ".%llu", &cmd_arrsize);
     DBG printf("cmd_num was found = %hd, number of cmds = %llu\n",st_succ, cmd_arrsize);
@@ -93,12 +106,6 @@ int main()
     }
     savecmd_arr(cmd_arr_ptr, cmd_arrsize++);
     fclose(reader);
-
-    double* cur_cmdptr = cmd_arr_ptr;
-    int cur_cmd = *(cur_cmdptr);
-
-    stk_t* stkadd = stack_ctor();
-    init_proc(stkadd);
 
     DBG
     {
@@ -122,7 +129,20 @@ int main()
         system("pause");
     }
 
-    while ((assert (cur_cmdptr >= cmd_arr_ptr && cur_cmdptr < cmd_arr_ptr + cmd_arrsize), *cur_cmdptr))
+    double* cur_cmdptr = cmd_arr_ptr;
+    int cur_cmd = lrint(*(cur_cmdptr));
+
+    stk_t* stkadd = stack_ctor();
+    stk_t* call_stack = stack_ctor();
+    union poor_double
+    {
+        double* ret_ind;
+        double d;
+    } transit = {0};
+
+    init_proc(stkadd);
+
+    while (cur_cmd != 0 && (assert (cur_cmdptr >= cmd_arr_ptr && cur_cmdptr < cmd_arr_ptr + cmd_arrsize), *cur_cmdptr))
     {
         cmd_cnt++;
         switch ((cur_cmd = (int)(*(cur_cmdptr++)), cur_cmd))
@@ -134,11 +154,11 @@ int main()
             case -1: stack_pop(stkadd); break;
             case 2:
                 assert (cur_cmdptr >= cmd_arr_ptr && cur_cmdptr < cmd_arr_ptr + cmd_arrsize);
-                push_reg (*(cur_cmdptr++), stkadd);
+                push_reg (lrint(*(cur_cmdptr++)), stkadd);
                 break;
             case -2:
                 assert (cur_cmdptr >= cmd_arr_ptr && cur_cmdptr < cmd_arr_ptr + cmd_arrsize);
-                pop_reg (*(cur_cmdptr++), stkadd);
+                pop_reg (lrint(*(cur_cmdptr++)), stkadd);
                 break;
             case 10: stack_add(stkadd); break;
             case 11: stack_mul(stkadd); break;
@@ -146,11 +166,34 @@ int main()
                 printf("Requested element = %lg\n", stack_peek(stkadd));
                 break;
             case -25: print_stack(stkadd); break;
+            case 15:
+                assert (cur_cmdptr >= cmd_arr_ptr && cur_cmdptr < cmd_arr_ptr + cmd_arrsize);
+                cur_cmdptr = cmd_arr_ptr + (llrint(*cur_cmdptr) - 1);
+                break;
+            case 20:
+                assert (cur_cmdptr >= cmd_arr_ptr && cur_cmdptr < cmd_arr_ptr + cmd_arrsize);
+                transit.ret_ind = cur_cmdptr + 1;
+                stack_push(transit.d, call_stack);
+                cur_cmdptr = cmd_arr_ptr + (llrint(*cur_cmdptr) - 1);
+                break;
+            case -20:
+                if (stack_check(call_stack) == EMPTY_STACK)
+                {
+                    printf("\nYou tryed to return, but haven't gone into the called function\n");
+                    printf("Check your commands. Program will be closed\n");
+                    system("pause");
+                    exit (0);
+                }
+                transit.d = stack_pop(call_stack);
+                cur_cmdptr = transit.ret_ind;
+                break;
+            case 0: break;
 
             default:
                 printf("No such operation! Program will be shut down.\n");
                 system("pause");
                 exit(0);
+                break;
         }
         DBG
            {

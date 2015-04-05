@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <cassert>
 #include <cstring>
+#include <fstream>
 #include <iostream>
 
 #ifdef DBG_mode
@@ -80,31 +81,33 @@ typename Stack<st_type>::err_t Stack <st_type>::Stack_verify ()
         return EMPTY;
     else
         return OK;
-    //return OK;      //for compiler to be quite
 }
 
 template <typename st_type>
 void Stack <st_type>::err_handle(err_t handling_error) const
 {
+    static std::fstream err_log;
+    err_log.open("Err_log.txt", std::fstream::out);
+
     if (handling_error == MEMERR)
     {
-        std::cout << "Stack was damaged or hasn't enough memory" << std::endl;
+        err_log << "Stack was damaged or hasn't enough memory" << std::endl;
         if (lastcond_ == MEMERR)
             exit(1);
     }
     else if (handling_error == DAMAGED)
     {
-        std::cout << "Stack was damaged. Size or number of elements is incorrect" << std::endl;
+        err_log << "Stack was damaged. Size or number of elements is incorrect" << std::endl;
         exit(1);
     }
     else if (handling_error == INC_POP)
     {
-        std::cout << "Stack is empty. Pop will be denied. 0 will be returned" << std::endl;
+        err_log << "Stack is empty. Pop will be denied. 0 will be returned" << std::endl;
         return;
     }
     else if (handling_error == EMP_PEEK)
     {
-        std::cout << "Stack is empty. 0 will be returned by Stack_peek()" << std::endl;
+        err_log << "Stack is empty. 0 will be returned by Stack_peek()" << std::endl;
         return;
     }
 }

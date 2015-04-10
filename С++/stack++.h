@@ -17,35 +17,52 @@
     #define DBG if(0)
 #endif
 
+/*This template stack can be initialized with any basic type (such as int, double or some pointer).
+There are some methods to work with it: Stack_push(), Stack_peek() - it returns top element or null
+if stack is empty, also Stack_print(), Stack_redsize() - to reduce space allocated to Stack
+(see desc. of this func.), Stack_place() which returns empty space in stack at the moment,
+Stack_cond(), which shows condition of stack: MEMERR, DAMAGED, INC_POP, EMP_PEEK, INC_RESP, FULL, OK.
+Also it generates Err_log.txt file to report about some special situations or errors*/
 template <typename st_type>
 class Stack
 {
-public:
-    typedef unsigned long long int ulli;
-    Stack();
-    ~Stack();
-    void Stack_push(st_type);
-    st_type Stack_pop();
-    st_type Stack_peek();
+private:
     enum err_t {
         EMPTY = 0,
         DAMAGED,
         MEMERR,
         INC_POP,
         EMP_PEEK,
+        INC_RESP,
         FULL = 9,
         OK
     };
-    err_t Stack_verify ();
+
+public:
+    Stack();
+    ~Stack();
+    void Stack_redsize(unsigned long long);
+    void Stack_push(st_type);
+    st_type Stack_pop();
+    st_type Stack_peek();
     void Stack_print ();
 
+    inline unsigned long long Stack_place() {
+        return st_size_ - counter_;
+    }
+    inline typename Stack<st_type>::err_t Stack_cond() {
+        return cond_;
+    }
+
 private:
-    const unsigned short int DEF_SIZE = 50, ADD_SIZE = 10, SUBT_SIZE = 100;
-    void Stack_resize(short int);
-    void err_handle (err_t) const;
+    const unsigned short int DEF_SIZE = 100, ADD_SIZE = 10, SUB_SIZE = 200;            //ADD_SIZE IN %
     st_type * data_;
-    ulli counter_, st_size_;
-    err_t lastcond_;
+    unsigned long long counter_, st_size_;
+    err_t cond_;                //condition of Stack, which can be got by Stack_cond()
+
+    void err_handle (err_t) const;
+    err_t Stack_verify ();
+    void Stack_resize();
 };
 
 template <typename st_type>
@@ -53,38 +70,36 @@ Stack<st_type>::Stack():
     data_ (new st_type[DEF_SIZE]),
     counter_ (0),
     st_size_ (DEF_SIZE),
-    lastcond_ (OK)
+    cond_ (OK)
 {
     DBG memset (data_, 0, DEF_SIZE * sizeof(st_type));
 }
 
 template <typename st_type>
-typename Stack<st_type>::err_t Stack <st_type>::Stack_verify ()
+typename Stack<st_type>::err_t Stack<st_type>::Stack_verify ()
 {
     DBG assert(this); //DBG?
     if (data_ == NULL)
     {
+        cond_ = MEMERR;
         err_handle(MEMERR);
-        lastcond_ = MEMERR;
-        return MEMERR;      //useless
     }
-    else
-        lastcond_ = OK; //because we need to determine MEMERR and any of other conditions
-    if (st_size_ == 0 || st_size_ < counter_)
+    else if (st_size_ == 0 || st_size_ < counter_)
     {
+        cond_ = MEMERR;
         err_handle(DAMAGED);
-        return DAMAGED;     //useless
     }
     else if (counter_ == st_size_)
-        return FULL;
+        cond_ = FULL;
     else if (counter_ == 0)
-        return EMPTY;
+        cond_ = EMPTY;
     else
-        return OK;
+        cond_ = OK;
+    return cond_;
 }
 
 template <typename st_type>
-void Stack <st_type>::err_handle(err_t handling_error) const
+void Stack<st_type>::err_handle(err_t handling_error) const
 {
     static std::fstream err_log;
     err_log.open("Err_log.txt", std::fstream::out);
@@ -92,8 +107,7 @@ void Stack <st_type>::err_handle(err_t handling_error) const
     if (handling_error == MEMERR)
     {
         err_log << "Stack was damaged or hasn't enough memory" << std::endl;
-        if (lastcond_ == MEMERR)
-            exit(1);
+        exit(1);
     }
     else if (handling_error == DAMAGED)
     {
@@ -110,6 +124,11 @@ void Stack <st_type>::err_handle(err_t handling_error) const
         err_log << "Stack is empty. 0 will be returned by Stack_peek()" << std::endl;
         return;
     }
+    else if (handling_error == INC_RESP)
+    {
+        err_log << "\nI!!!--------\nIncorrect respond to stack public method. Nothing to be done\n!!!--------\n" << std::endl;
+        return;
+    }
 }
 
 template <typename st_type>
@@ -122,33 +141,47 @@ Stack<st_type>::~Stack()
 }
 
 template <typename st_type>
-void Stack<st_type>::Stack_resize(short int res_type)
+void Stack<st_type>::Stack_resize()
 {
-    ulli nsize = 0;
+    double calc_nsize = 0;
+    unsigned long long nsize = 0;
     st_type * old_data = data_;
-    DBG
-    {
-        err_t check = Stack_verify();
-        if ((check == FULL && res_type == 1) || (check == OK && res_type == -1))
-            nsize = counter_ + ADD_SIZE;
-        else assert(("Incorrect respond to Stack_resize", 0));
-    }
-    else nsize = counter_ + ADD_SIZE;
+    calc_nsize = counter_ * (1 + 1.0*ADD_SIZE/100);
+    nsize = (unsigned long long)calc_nsize;
 
-    //data_ = (st_type *)realloc (data_, nsize * sizeof(st_type));  //replace realloc
     data_ = new st_type[nsize];
-    Stack_verify();
-    for (ulli i = 0; i < counter_; i--)
+    Stack_verify();                 //Was memory allocated?
+
+    for (unsigned long long i = 0; i < counter_; i++)
         data_[i] = old_data[i];
     delete [] old_data;
     st_size_ = nsize;
+}
+
+/*Public method which allows user to reduce space, belonging to stack.
+You can only free empty space (w/o loosing any data) and you couldn't set space less
+than initializing size (see description of class)*/
+template <typename st_type>
+void Stack<st_type>::Stack_redsize(unsigned long long red_size)
+{
+    if (red_size >= st_size_ - counter_ && st_size_ - red_size >= DEF_SIZE)
+        err_handle(INC_RESP);            //TODO Can accept reducing size with loosing some data_
+    //Warn mode could be added and give user information about
+    //too little decreasing of Stack_size, which can be ineffective
+    else
+    {
+        data_ = (st_type *)realloc(data_, (st_size_ - red_size) * sizeof(st_type));
+        Stack_verify();                 //Was memory allocated?
+        st_size_ -= red_size;
+    }
+    return;
 }
 
 template <typename st_type>
 void Stack<st_type>::Stack_push(st_type entry)
 {
     if (Stack_verify() == FULL)
-        Stack_resize(1);
+        Stack_resize();
     data_[counter_++] = entry;
 }
 
@@ -161,8 +194,7 @@ st_type Stack<st_type>::Stack_pop()
         return 0;
     }
     st_type res = data_[--counter_];
-    if (st_size_ > counter_ + SUBT_SIZE)
-        Stack_resize(-1);
+    //Warn mode could be added and give user information about almost empty stack
     return res;
 }
 
@@ -189,7 +221,7 @@ void Stack<st_type>::Stack_print()
     else
     {
         std::cout << "Elements:\n";
-        for (ulli i = 0; i < counter_; i++)
+        for (unsigned long long i = 0; i < counter_; i++)
         {
             printf("\t[%4llu] element is ", i + 1);
             std::cout << data_[i] << std::endl;
